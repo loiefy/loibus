@@ -6,14 +6,14 @@
 typedef unsigned char uint8;
 typedef unsigned int uint16;
 
-uint8 databuff[] = " . fasdfskjfl; #W12AB03010203! dcmpqrckstackwahsdkf";
+uint8 databuff[] = " . fasdfskjfl; #W001A03010203! dcmpqrck #W000201A0!stackwahs#W00BB0110!dkf";
 uint8 memcom_hexdec_map[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 uint8 memcom_hexdec_map2[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
 #define VFX_LOG     printf
 
 #define MEMCOM_CMD_SIZE     64
-#define MEMCOM_DATA_SIZE    64
+#define MEMCOM_DATA_SIZE    255
 #define E_OK        0
 #define E_NOT_OK    1
 
@@ -41,7 +41,7 @@ int main(void)
     printf("Hello people \r\n");
     memcom_init();
 
-    for (int i = 0; i < 65535; i++ )
+    for (int i = 0; i < 100; i++ )
     {
         memcom_mainfunction();
     }
@@ -91,7 +91,8 @@ void memcom_mainfunction(void)
                 memcom_commandbuff[memcom_cmdbuff_index ++] = newchar;
                 memcom_commandbuff[memcom_cmdbuff_index ++] = 0;
                 memcom_process_command(memcom_commandbuff);
-                VFX_LOG("%s\r\n", memcom_commandbuff);
+                memcom_cmdbuff_index = 0;
+                // VFX_LOG("%s\r\n", memcom_commandbuff);
             }
             else if ( E_OK == memcom_is_ascci_hex(newchar) )
             {
@@ -158,22 +159,48 @@ uint8 memcom_is_ascci_hex(uint8 ch )
 uint8 memcom_process_command( uint8 * str )
 {
     uint16 u16address = 0;
-    uint8 data[MEMCOM_DATA_SIZE];
+    uint8 u8datalen = 0;
+    uint8 data;
+    uint8 u8index = 0;
 
     if ( E_OK == memcom_is_cmd_option(str[1]) )
     {
-        if (( str[1] == 'W') || ( str[1] == 'w'))
+        if (( str[1] == 'W') || ( str[1] == 'w'))   /* This is write command */
         {
-            /* This is write command */
+            /* check address */
             u16address = memcom_hex_to_2bytesdec(str + 2);
             if ( u16address >= MEMCOM_DATA_SIZE )
             {
-                VFX_LOG("%s, address %d out of memory \r\n", __FUNCTION__, u16address);
+                VFX_LOG("%s, %d, address %d out of memory \r\n", __FUNCTION__, __LINE__, u16address);
                 return E_NOT_OK;
             }
-        } else
+
+            /* check data len match with the data was received */
+            u8datalen = memcom_hex_to_1bytedec(str + 6);
+            if ((u8datalen * 2) != (strlen(str) - 9 ))
+            {
+                VFX_LOG("%s, %d, data len not match \r\n", __FUNCTION__, __LINE__);
+                return E_NOT_OK;
+            }
+
+            /* Check if address + datalen out of data table */
+            if ((u16address + u8datalen) > MEMCOM_DATA_SIZE)
+            {
+                VFX_LOG("%s, %d, error, data len too big!\r\n", __FUNCTION__, __LINE__);
+                return E_NOT_OK;
+            }
+
+            /* Get data then write to memory */
+            for ( u8index = 0; u8index < u8datalen; u8index ++ )
+            {
+                data = memcom_hex_to_1bytedec(str + 8 + u8index *2 );
+                memcom_data[u16address + u8index] = data;
+                VFX_LOG("[%d]= 0x%x, ", u16address + u8index, memcom_data[u16address + u8index]);
+            }
+
+        } else  /* This is read command */
         {
-            /* This is read command */
+            
         }
     }
     return E_NOT_OK;
